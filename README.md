@@ -1,10 +1,11 @@
 # PDE-Surrogate-RandomForest-XGBoost
 "Modèles substituts (Surrogate Models) basés sur Random Forest et XGBoost pour la résolution numérique d'équations aux dérivées partielles (EDP)."
+
 # Modèles Substituts (Surrogate Models) pour la Résolution d'EDP Non Linéaires
 
-Ce projet présente une approche de Machine Learning (Random Forest et XGBoost) pour prédire en temps réel la solution faible d'une Équation aux Dérivées Partielles (EDP) non linéaire, en s'appuyant sur un cadre d'analyse variationnelle rigoureux.
+Ce projet présente une approche de Machine Learning (Random Forest et XGBoost) pour prédire en temps réel la solution faible d'une Équation aux Dérivées Partielles (EDP) non linéaire, en s'appuyant sur un cadre d'analyse variationnelle rigoureux et une validation numérique par la Méthode des Éléments Finis (MEF) sous MATLAB.
 
----
+-----------------------------------------------------------------------------------------------------------------------------------------
 
 ## 1. Formulation Analytique du Problème
 
@@ -23,7 +24,7 @@ Pour définir l'espace de travail des solutions faibles, nous analysons séparé
 
 **Théorème d'injection de Sobolev (Dimension $N=1$) :** En dimension 1, l'espace $H^1(0,1)$ s'injecte de façon continue (et compacte) dans l'espace des fonctions continues $C^0([0,1])$, et par conséquent dans tous les espaces $L^p(0,1)$ pour tout $p \geq 1$.
 
-Puisque $H_0^1(0,1) \hookrightarrow L^6(0,1)$ de manière continue, le terme non linéaire $u^3$ ne nécessite pas l'introduction d'un espace d'Orlicz ou de Musielak spécifique ici. L'espace de Banach réflexif et séparable idoine est donc tout simplement :
+Puisque $H_0^1(0,1) \hookrightarrow L^6(0,1)$ de manière continue, l'espace idoine pour ce problème est tout simplement :
 
 $$V = H_0^1(0,1)$$
 
@@ -80,15 +81,41 @@ La solution faible $u \in H_0^1(0,1)$ du problème vérifie : $u(x) \geq 0$ pres
    * Terme non linéaire : $\int_0^1 u^3 u^- \, dx = -\int_0^1 |u^-(x)|^4 \, dx$
 4. **Estimation finale** : En multipliant par $-1$, l'égalité devient :
    $$\underbrace{\int_0^1 |(u^-)'(x)|^2 \, dx + \int_0^1 |u^-(x)|^4 \, dx}_{\geq 0} = \underbrace{-\int_0^1 \sin(\pi x) u^-(x) \, dx}_{\leq 0}$$
-Pour respecter les signes, il est mathématiquement nécessaire que les deux membres soient rigoureusement nuls. On en déduit que $\int_0^1 |u^-(x)|^4 \, dx = 0$, d'où $u^-(x) = 0$ presque partout. 
+Pour respecter les signes, il est mathématiquement nécessaire que les deux membres soient rigoureusement nuls. On en déduit que $\int_0^1 |u^-(x)|^4 \, dx = 0$, d'vou $u^-(x) = 0$ presque partout. 
 
 **Conclusion** : $u(x) = u^+(x) \geq 0$ presque partout sur $(0,1)$. $\blacksquare$
 
 ---
 
-## 🛠️ Implémentation Numérique & Machine Learning
-Ce cadre rigoureux garantit la stabilité physique des données d'entraînement. Le projet compare les performances de :
+## 💻 4. Simulations et Validations Numériques (MATLAB)
+
+Afin de valider empiriquement le comportement théorique de notre modèle, plusieurs scripts de calcul numérique ont été développés sous MATLAB :
+
+### 4.1 Résolution par Éléments Finis $P_1$ & Algorithme de Newton-Raphson
+La minimisation de la fonctionnelle d'énergie $J(u)$ équivaut à résoudre le système algébrique non linéaire issu de la discrétisation spatiale :
+$$\mathbf{K} \cdot \mathbf{U} + \mathbf{N\_vec}(\mathbf{U}) = \mathbf{F}$$
+Un solveur itératif basé sur la méthode de **Newton-Raphson** a été implémenté pour traiter le terme cubique $u^3$. Le modèle converge de manière quadratique en seulement 4 à 5 itérations (Tolérance = $10^{-8}$).
+
+### 4.2 Analyse de Convergence Énergétique et d'Erreurs
+* **Étude Énergétique** : Calcul et suivi de l'énergie minimale $J(u_h)$ sur des maillages de plus en plus fins ($N = 10$ à $320$). On observe une stabilisation parfaite de l'énergie vers la borne inférieure absolue.
+* **Analyse d'Erreur et EOC (Experimental Order of Convergence)** : En utilisant une solution de référence hautement résolue ($N_{ref} = 640$), nous avons calculé les erreurs dans les normes classiques. Les résultats confirment strictement les estimations d'erreur a priori de la théorie des Éléments Finis :
+  * Ordre de convergence dans la norme $L^2$ : $\mathcal{O}(h^2)$ (pente expérimentale $\approx 2.00$)
+  * Ordre de convergence dans la semi-norme $H^1$ : $\mathcal{O}(h)$ (pente expérimentale $\approx 1.00$)
+
+### 4.3 Générateur de Données (Data Factory pour l'IA)
+Un script d'automatisation a été conçu pour générer le dataset d'entraînement. En simulant $50$ fonctions sources $f(x)$ aléatoires (combinaisons de sinus et de polynômes) et en résolvant à chaque fois le problème par la MEF, nous avons extrait un fichier structuré `pde_data_multi.csv` contenant **5100 lignes** de features géométriques et physiques.
+
+---
+
+## 🛠️ 5. Implémentation du Machine Learning & Déploiement
+
+Ce dataset propre et stable, issu du solveur physique MATLAB, a été injecté dans un environnement de Data Science pour entraîner des modèles prédictifs rapides :
 1. **Random Forest Regressor**
 2. **XGBoost Regressor**
 
-Pour prédire instantanément le profil de $u(x)$ à partir de n'importe quel terme source fourni via l'interface interactive **Streamlit**.
+### 🚀 Application Interactive (Streamlit Cloud)
+Les modèles entraînés sont déployés au sein d'une interface utilisateur web interactive via **Streamlit**. Elle permet de fournir n'importe quel terme source $f(x)$ et de prédire/visualiser **instantanément** (en une fraction de seconde, sans aucune itération lourde) le profil complet de la solution faible $u(x)$.
+
+
+
+
